@@ -1,0 +1,96 @@
+// first step of tesselation shader
+// tesselation control shader add/deletes control points and determines the tesselatation level
+// patch has three control points here (three vertices for each triangle)
+
+
+#version 450 core
+layout (vertices = 3) out;
+
+
+// vectors stored as arrays - each patch has three vertices, each with an xyz pos and xyz norm value 
+//posVS = position from Vertex Shader, posTC = position from this Tesselation Control shader
+
+in vec3 posVS[];
+in vec3 eyePos[];
+in vec2 uvVS[];
+
+out vec3 posTC[];
+out vec2 uvTC[];
+
+float linearDDT(float d0, float d1);
+float stepDDT(float d0, float d1);
+float exponentialDDT(float d0, float d1); 
+float tunedDDT(float d0, float d1);
+
+void main()
+{
+   // gpu can calculate each control point in parallel
+   // tesselation level same for entire patch so only need to set it once (for the first control point)
+   // gl_invocation called for each control point
+   if (gl_InvocationID==0)
+   {
+          float edge0 = distance(eyePos[0], posVS[0]);
+          float edge1 = distance(eyePos[0], posVS[1]);
+          float edge2 = distance(eyePos[0], posVS[2]);
+		   // Calculate the tessellation levels
+          gl_TessLevelOuter[0] = tunedDDT(edge1, edge2); 
+          gl_TessLevelOuter[1] = tunedDDT(edge2, edge0); 
+          gl_TessLevelOuter[2] = tunedDDT(edge0, edge1);
+          gl_TessLevelInner[0] = gl_TessLevelOuter[2]; 
+
+   }
+
+   // pass through position and normal information
+   posTC[gl_InvocationID]  = posVS[gl_InvocationID];
+   uvTC[gl_InvocationID] = uvVS[gl_InvocationID]; 
+
+}
+
+//Tuned ddt that seamlessly tesselates
+float tunedDDT(float d0, float d1)
+{
+    float avg = (d0 + d1) / 2.0;
+    if(avg > 700)
+    {
+        return 1;
+    }
+    else if(avg > 500)
+    {
+        return clamp(1400 / avg, 2.0, 3.0);
+    }
+    else
+    {
+        return clamp(exp(-0.004*avg + 3.5), 3.0, 5.0);
+    }
+    return 5;
+}
+
+float linearDDT(float d0, float d1)
+{
+    float avg = (d0 + d1) / 2.0;
+    
+    return clamp(1200 / avg, 4.0, 10.0);
+}
+
+float stepDDT(float d0, float d1)
+{
+    float avg = (d0 + d1) / 2;
+    if(avg > 2000)
+    {
+        return 4;
+    }
+    else if(avg > 1500)
+    {
+        return 6;
+    }
+    else
+    {
+        return 8;
+    }
+}
+
+float exponentialDDT(float d0, float d1) 
+{
+    float avg = (d0 + d1) / 2;
+    return clamp(exp(100000 / avg), 4.0, 8.0);
+}

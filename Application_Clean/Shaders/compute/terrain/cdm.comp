@@ -1,0 +1,22 @@
+#version 450
+layout(local_size_x = 16, local_size_y = 32) in;
+layout(binding = 0, rgba32f) uniform image2D img_output;
+layout(binding = 1, rgba32f) uniform image2D img_heightmap;
+
+uniform float scale;
+
+void main()
+{
+	vec4 pixel = vec4(0.0);
+	ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
+
+	float right =  imageLoad(img_output, ivec2(clamp(pixel_coords.x + 1, 0, 2048), pixel_coords.y)).r * scale; 
+	float left  =  imageLoad(img_output, ivec2(clamp(pixel_coords.x - 1, 0, 2048), pixel_coords.y)).r * scale; 
+	float up    =  imageLoad(img_output, ivec2(pixel_coords.x, clamp(pixel_coords.y + 1,0, 2048))).r * scale; 
+	float down  =  imageLoad(img_output, ivec2(pixel_coords.x, clamp(pixel_coords.y - 1,0, 2048))).r * scale; 
+
+	vec3 norm = normalize(vec3(left-right,2.0,up-down));
+	pixel = vec4(norm, imageLoad(img_output, pixel_coords).r) * scale;
+
+	imageStore(img_heightmap, pixel_coords, pixel);
+}
